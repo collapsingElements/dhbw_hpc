@@ -79,7 +79,7 @@ void evolve(double* currentfield, double* newfield, int startX, int endX, int st
 int countNeighbours(double* currentfield, int x, int y, int w, int h) {
   int n = 0;
   int xl=x-1,xr=x+1,yu=y-1,yo=y+1;
-  if (xr == w) xl=0;
+  if (xr == w) xr=0;
   if (yo == h) yo=0;
   if (xl < 0) xl=w-1;
   if (yu < 0) yu=h-1;
@@ -121,8 +121,6 @@ void game(int w, int h) {
 
     #pragma omp parallel private(startX, startY, endX, endY) firstprivate(fieldWidth, fieldHeight, xFactor, yFactor, w, h) num_threads(number_of_areas)
     {
-      printf("fieldWidth=%d\n", fieldWidth);
-      printf("fieldHeight=%d\n", fieldHeight);
       startX = fieldWidth * (omp_get_thread_num() % xFactor);
       endX = (fieldWidth * ((omp_get_thread_num() % xFactor) + 1)) - 1;
       startY = fieldHeight * (omp_get_thread_num() / xFactor);
@@ -135,9 +133,6 @@ void game(int w, int h) {
       if(omp_get_thread_num() / xFactor == (h - 1)) {
         endY = h - 1;
       }
-
-      printf("Thread %d has area: [%d..%d][%d..%d]\n", omp_get_thread_num(), startX, endX, startY, endY);
-
 
       evolve(currentfield, newfield, startX, endX, startY, endY, w, h);
       writeVTK2(t,currentfield,"gol", startX, endX, startY, endY, w, h, omp_get_thread_num());
