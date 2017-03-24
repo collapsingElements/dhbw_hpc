@@ -12,43 +12,6 @@
 
 long TimeSteps = 100;
 
-void writeVTK2(long timestep, double *data, char prefix[1024], int xStart, int xEnd, int yStart, int yEnd, long w, long h, int thread_num) {
-  char filename[2048];
-  int x,y;
-
-  long offsetX=0;
-  long offsetY=0;
-  float deltax=1.0;
-  float deltay=1.0;
-  long  nxy = w * h * sizeof(float);
-
-  snprintf(filename, sizeof(filename), "%s-%05ld-%02d%s", prefix, timestep, thread_num, ".vti");
-  FILE* fp = fopen(filename, "w");
-
-  fprintf(fp, "<?xml version=\"1.0\"?>\n");
-  fprintf(fp, "<VTKFile type=\"ImageData\" version=\"0.1\" byte_order=\"LittleEndian\" header_type=\"UInt64\">\n");
-  fprintf(fp, "<ImageData WholeExtent=\"%d %d %d %d %d %d\" Origin=\"0 0 0\" Spacing=\"%le %le %le\">\n", offsetX, offsetX + (xEnd - xStart), offsetY, offsetY + (yEnd - yStart), 0, 0, deltax, deltax, 0.0);
-  fprintf(fp, "<CellData Scalars=\"%s\">\n", prefix);
-  fprintf(fp, "<DataArray type=\"Float32\" Name=\"%s\" format=\"appended\" offset=\"0\"/>\n", prefix);
-  fprintf(fp, "</CellData>\n");
-  fprintf(fp, "</ImageData>\n");
-  fprintf(fp, "<AppendedData encoding=\"raw\">\n");
-  fprintf(fp, "_");
-  fwrite((unsigned char*)&nxy, sizeof(long), 1, fp);
-
-  for (y = yStart; y <= yEnd; y++) {
-    for (x = xStart; x <= xEnd; x++) {
-      float value = data[calcIndex(h, x,y)];
-      fwrite((unsigned char*)&value, sizeof(float), 1, fp);
-    }
-  }
-
-  fprintf(fp, "\n</AppendedData>\n");
-  fprintf(fp, "</VTKFile>\n");
-  fclose(fp);
-}
-
-
 void show(double* currentfield, int w, int h) {
   printf("\033[H");
   int x,y;
@@ -68,9 +31,13 @@ void evolve(double* currentfield, double* newfield, int startX, int endX, int st
 
       int n = countNeighbours(currentfield, x, y, w, h);
 
+      //Aktive Zelle mit weniger als 2 Nachbarn: stirb
       if (currentfield[calcIndex(w, x,y)] && n < 2) { newfield[calcIndex(w, x,y)] = !currentfield[calcIndex(w, x,y)]; }
+      //Aktive Zelle mit 2 oder 3 Nachbarn: bleib am Leben
       if (currentfield[calcIndex(w, x,y)] && (n == 2 || n == 3)) { newfield[calcIndex(w, x,y)] = currentfield[calcIndex(w, x,y)]; }
+      //Aktive Zelle mit mehr als 3 Nachbarn: stirb
       if (currentfield[calcIndex(w, x,y)] && n > 3) { newfield[calcIndex(w, x,y)] = !currentfield[calcIndex(w, x,y)]; }
+      //Inaktive Zelle mit genau 3 Nachbarn: Neues Leben!
       if (!currentfield[calcIndex(w, x,y)] && n == 3) { newfield[calcIndex(w, x,y)] = !currentfield[calcIndex(w, x,y)]; }
     }
   }
@@ -78,19 +45,20 @@ void evolve(double* currentfield, double* newfield, int startX, int endX, int st
 
 int countNeighbours(double* currentfield, int x, int y, int w, int h) {
   int n = 0;
-  int xl=x-1,xr=x+1,yu=y-1,yo=y+1;
-  if (xr == w) xr=0;
+  int xl=x-1,xr=x+1,yu=y-1,yo=y+1; // Umliegende Felder
+  if (xr == w) xr=0; //Randbedingungen
   if (yo == h) yo=0;
   if (xl < 0) xl=w-1;
   if (yu < 0) yu=h-1;
-  if (currentfield[calcIndex(w, xl,yo)]) { n++; }
-  if (currentfield[calcIndex(w, x,yo)]) { n++; }
-  if (currentfield[calcIndex(w, xr,yo)]) { n++; }
-  if (currentfield[calcIndex(w, xr,y)]) { n++; }
-  if (currentfield[calcIndex(w, xr,yu)]) { n++; }
-  if (currentfield[calcIndex(w, x,yu)]) { n++; }
-  if (currentfield[calcIndex(w, xl,yu)]) { n++; }
-  if (currentfield[calcIndex(w, xl,y)]) { n++; }
+
+  if (currentfield[calcIndex(w, xl,yo)]) n++; //links oben
+  if (currentfield[calcIndex(w, x,yo)]) n++; //oben
+  if (currentfield[calcIndex(w, xr,yo)]) n++; //rechts oben
+  if (currentfield[calcIndex(w, xr,y)]) n++; // rechts
+  if (currentfield[calcIndex(w, xr,yu)]) n++; // rechts unten
+  if (currentfield[calcIndex(w, x,yu)]) n++; // unten
+  if (currentfield[calcIndex(w, xl,yu)]) n++; // links unten
+  if (currentfield[calcIndex(w, xl,y)]) n++; // links
   return n;
 }
 
@@ -110,32 +78,34 @@ void game(int w, int h) {
   filling(currentfield, w, h);
   long t;
   int startX, startY, endX, endY;
-  int xFactor = 2;  // :-)
-  int yFactor = 2;
-  int number_of_areas = xFactor * yFactor;
-  int fieldWidth = (w/xFactor) + (w % xFactor > 0 ? 1 : 0);
-  int fieldHeight = (h/yFactor) + (h % yFactor > 0 ? 1 : 0);
+  int xSplit = 2; // 4 Threads
+  int ySplit = 2;
+  int numberOfFields = xSplit * ySplit;
+  int fieldWidth = (w/xSplit) + (w % xSplit > 0 ? 1 : 0);
+  int fieldHeight = (h/ySplit) + (h % ySplit > 0 ? 1 : 0);
 
   for (t=0;t<TimeSteps;t++) {
     show(currentfield, w, h);
 
-    #pragma omp parallel private(startX, startY, endX, endY) firstprivate(fieldWidth, fieldHeight, xFactor, yFactor, w, h) num_threads(number_of_areas)
+    // 4 Felder -> 4 Threads, jeder Thread bekommt eigene InstanzVariabeln
+    #pragma omp parallel private(startX, startY, endX, endY) firstprivate(fieldWidth, fieldHeight, xSplit, ySplit, w, h) num_threads(numberOfFields)
     {
-      startX = fieldWidth * (omp_get_thread_num() % xFactor);
-      endX = (fieldWidth * ((omp_get_thread_num() % xFactor) + 1)) - 1;
-      startY = fieldHeight * (omp_get_thread_num() / xFactor);
-      endY = (fieldHeight * ((omp_get_thread_num() / xFactor) + 1)) - 1;
 
-      if(omp_get_thread_num() % xFactor == (xFactor - 1)) {
+      //Aufteilung der Felder auf die Threads.
+      startX = fieldWidth * (omp_get_thread_num() % xSplit);
+      startY = fieldHeight * (omp_get_thread_num() / xSplit);
+      endX = (fieldWidth * ((omp_get_thread_num() % ySplit) + 1)) - 1;
+      endY = (fieldHeight * ((omp_get_thread_num() / ySplit) + 1)) - 1;
+
+      if(omp_get_thread_num() % xSplit == (xSplit - 1)) {
         endX = w - 1;
       }
 
-      if(omp_get_thread_num() / xFactor == (h - 1)) {
+      if(omp_get_thread_num() / ySplit == (h - 1)) {
         endY = h - 1;
       }
 
       evolve(currentfield, newfield, startX, endX, startY, endY, w, h);
-      writeVTK2(t,currentfield,"gol", startX, endX, startY, endY, w, h, omp_get_thread_num());
     }
 
     printf("%ld timestep\n",t);

@@ -1,6 +1,5 @@
-Wie können Sie dies den Benutzer steueren lassen?
--> Beim Ausführen des Programms kann der Benutzer den Parameter "OMP_NUM_THREADS=%THREAD_COUNT%"" setzen,
-  um die Anzahl der Threads zu definieren
+Wie können Sie dies den Benutzer steuern lassen?
+-> Durch das Setzen der Umgebungsvariablen "OMP_NUM_THREADS"
 
 Wie können Sie dies den Benutzer unterbinden?
--> Durch festlegung der Threads über die Funktion "num_threads(ANZAHL_DER_THREADS)
+-> Durch hard-codierte Zuweisung der Anzahl über die Funktion "num_threads(ANZAHL_DER_THREADS)

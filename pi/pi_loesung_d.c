@@ -17,9 +17,9 @@ static int throw() {
 int main(int argc, char **argv) {
   int globalCount = 0, globalSamples=TRYS;
 
-  #pragma omp parallel reduction( +: globalCount)
+  #pragma omp parallel reduction( +: globalCount) //Parallele Ausführng mit Reduktion von globalCount
   {
-    #pragma omp for
+    #pragma omp for //Teile Iterations-Schritte auf Threads auf
     for(int i = 0; i < globalSamples; ++i) {
   		globalCount += throw();
     }

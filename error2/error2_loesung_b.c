@@ -39,18 +39,18 @@ omp_init_lock(&lockb);
 
   #pragma omp sections nowait
     {
-    #pragma omp section
+    #pragma omp section //Deadlock
       {
       printf("Thread %d initializing a[]\n",tid);
-      omp_set_lock(&locka);
+      omp_set_lock(&locka); //lock a
       for (i=0; i<N; i++)
         a[i] = i * DELTA;
-      omp_unset_lock(&locka);
-      omp_set_lock(&lockb);
+      omp_unset_lock(&locka); //gebe a frei
+      omp_set_lock(&lockb); //lock dann b
       printf("Thread %d adding a[] to b[]\n",tid);
       for (i=0; i<N; i++)
         b[i] += a[i];
-      omp_unset_lock(&lockb);
+      omp_unset_lock(&lockb); //gebe b frei
       }
 
     #pragma omp section

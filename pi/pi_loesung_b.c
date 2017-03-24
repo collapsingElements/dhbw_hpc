@@ -17,9 +17,9 @@ static int throw() {
 int main(int argc, char **argv) {
   int globalCount = 0, globalSamples=TRYS;
 
-  #pragma omp parallel for
+  #pragma omp parallel for //Paralleles Ausführen der For-Schleife ohne Reduction
   for(int i = 0; i < globalSamples; ++i) {
-    #pragma omp atomic
+    #pragma omp atomic //Setze globalCount atomic um Race-Conditions zu vermeiden!
 		globalCount += throw();
   }
 

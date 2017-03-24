@@ -34,7 +34,7 @@ for (i=0; i<N; i++)
   printf("Thread %d starting...\n",tid);
   #pragma omp barrier
 
-  #pragma omp sections nowait private(c)
+  #pragma omp sections nowait private(c) //Für jeden Thread eine eigene Instanz von c, da sonst c überschrieben wird (Race Condition)
     {
     #pragma omp section
       {

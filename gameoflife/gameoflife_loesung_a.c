@@ -68,29 +68,35 @@ void evolve(double* currentfield, double* newfield, int w, int h) {
 
       int n = countNeighbours(currentfield, x, y, w, h);
 
+      //Aktive Zelle mit weniger als 2 Nachbarn: stirb
       if (currentfield[calcIndex(w, x,y)] && n < 2) { newfield[calcIndex(w, x,y)] = !currentfield[calcIndex(w, x,y)]; }
+      //Aktive Zelle mit 2 oder 3 Nachbarn: bleib am Leben
       if (currentfield[calcIndex(w, x,y)] && (n == 2 || n == 3)) { newfield[calcIndex(w, x,y)] = currentfield[calcIndex(w, x,y)]; }
+      //Aktive Zelle mit mehr als 3 Nachbarn: stirb
       if (currentfield[calcIndex(w, x,y)] && n > 3) { newfield[calcIndex(w, x,y)] = !currentfield[calcIndex(w, x,y)]; }
+      //Inaktive Zelle mit genau 3 Nachbarn: Neues Leben!
       if (!currentfield[calcIndex(w, x,y)] && n == 3) { newfield[calcIndex(w, x,y)] = !currentfield[calcIndex(w, x,y)]; }
     }
   }
 }
 
+//Untersuche alle umliegende Felder und gib die Anzahl der benachbarten Zellen zurück
 int countNeighbours(double* currentfield, int x, int y, int w, int h) {
   int n = 0;
-  int xl=x-1,xr=x+1,yu=y-1,yo=y+1;
-  if (xr == w) xl=0;
+  int xl=x-1,xr=x+1,yu=y-1,yo=y+1; // Umliegende Felder
+  if (xr == w) xr=0; //Randbedingungen
   if (yo == h) yo=0;
   if (xl < 0) xl=w-1;
   if (yu < 0) yu=h-1;
-  if (currentfield[calcIndex(w, xl,yo)]) { n++; }
-  if (currentfield[calcIndex(w, x,yo)]) { n++; }
-  if (currentfield[calcIndex(w, xr,yo)]) { n++; }
-  if (currentfield[calcIndex(w, xr,y)]) { n++; }
-  if (currentfield[calcIndex(w, xr,yu)]) { n++; }
-  if (currentfield[calcIndex(w, x,yu)]) { n++; }
-  if (currentfield[calcIndex(w, xl,yu)]) { n++; }
-  if (currentfield[calcIndex(w, xl,y)]) { n++; }
+
+  if (currentfield[calcIndex(w, xl,yo)]) n++; //links oben
+  if (currentfield[calcIndex(w, x,yo)]) n++; //oben
+  if (currentfield[calcIndex(w, xr,yo)]) n++; //rechts oben
+  if (currentfield[calcIndex(w, xr,y)]) n++; // rechts
+  if (currentfield[calcIndex(w, xr,yu)]) n++; // rechts unten
+  if (currentfield[calcIndex(w, x,yu)]) n++; // unten
+  if (currentfield[calcIndex(w, xl,yu)]) n++; // links unten
+  if (currentfield[calcIndex(w, xl,y)]) n++; // links
   return n;
 }
 
