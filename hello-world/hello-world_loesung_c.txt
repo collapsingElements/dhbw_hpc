@@ -1,0 +1,2 @@
+Was fällt Ihnen bei mehrfacher Ausführung des Progamms in der Ausgabe auf?
+-> Durch die parallele Bearbeitung geben die Threads nicht immer in der selben Reihenfolge "Hello World.." auf der Konsole aus.
