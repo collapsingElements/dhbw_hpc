@@ -52,7 +52,7 @@ void writeVTK2Thread(long timestep, double *data, char pathString[1024], char pr
   fclose(fp);
 }
 
-void writeVTK2Main(long timestep, double *data, char pathString[1024], char prefix[1024], long w, long h, int *threadData, int num_threads) {
+void writeVTK2Main(long timestep, double *data, char pathString[1024], char prefix[1024], long w, long h, int *bounds, int num_threads) {
   char filename[2048];
   int x,y;
 
@@ -74,11 +74,7 @@ void writeVTK2Main(long timestep, double *data, char pathString[1024], char pref
 
   for (int i = 0; i < num_threads; i ++) {
     fprintf(fp, "<Piece Extent=\"%d %d %d %d 0 0\" Source=\"%s_%05ld-%02d%s\"/>\n",
-    threadData[i * 4],
-    threadData[i * 4 + 1] + 1,
-    threadData[i * 4 + 2],
-    threadData[i * 4 + 3] + 1,
-    prefix, timestep, i, ".vti");
+    bounds[i * 4], bounds[i * 4 + 1] + 1, bounds[i * 4 + 2], bounds[i * 4 + 3] + 1, prefix, timestep, i, ".vti");
   }
 
   fprintf(fp,"</PImageData>\n");
@@ -141,26 +137,19 @@ int countNeighbours(double* currentfield, int x, int y, int w, int h) {
   return n;
 }
 
-void filling(double* currentfield, int w, int h) {
-  int i;
-  for (i = 0; i < h*w; i++) {
-    currentfield[i] = (rand() < RAND_MAX / 10) ? 1 : 0; ///< init domain randomly
-  }
-}
-
-void game(int w, int h) {
-  double *currentfield = calloc(w*h, sizeof(double));
+void game() {
+  int w, h;
+  int* width = &w;
+  int* height = &h;
+  double *currentfield = readFromFile("gol.seed", width, height);
   double *newfield     = calloc(w*h, sizeof(double));
 
-  //printf("size unsigned %d, size long %d\n",sizeof(float), sizeof(long));
-
-  filling(currentfield, w, h);
   long t;
   int startX, startY, endX, endY;
   int xSplit = 2;
   int ySplit = 2;
   int number_of_fields = xSplit * ySplit;
-  int *threadData = calloc(number_of_fields * 4, sizeof(int));
+  int *bounds = calloc(number_of_fields * 4, sizeof(int));
   int fieldWidth = (w/xSplit) + (w % xSplit > 0 ? 1 : 0);
   int fieldHeight = (h/ySplit) + (h % ySplit > 0 ? 1 : 0);
 
@@ -189,21 +178,21 @@ void game(int w, int h) {
       evolve(currentfield, newfield, startX, endX, startY, endY, w, h);
       writeVTK2Thread(t, currentfield, "/Users/CHeizmann/Documents/workspace_hpc/dhbw_hpc/gameoflife/vti", "gol", startX, endX, startY, endY, w, h, omp_get_thread_num());
 
-      threadData[omp_get_thread_num() * 4] = startX;
-      threadData[omp_get_thread_num() * 4 + 1] = endX;
-      threadData[omp_get_thread_num() * 4 + 2] = startY;
-      threadData[omp_get_thread_num() * 4 + 3] = endY;
+      bounds[omp_get_thread_num() * 4] = startX;
+      bounds[omp_get_thread_num() * 4 + 1] = endX;
+      bounds[omp_get_thread_num() * 4 + 2] = startY;
+      bounds[omp_get_thread_num() * 4 + 3] = endY;
 
     }
 
-    writeVTK2Main(t, currentfield, "/Users/CHeizmann/Documents/workspace_hpc/dhbw_hpc/gameoflife/vti", "gol", w, h, threadData, number_of_fields);
+    writeVTK2Main(t, currentfield, "/Users/CHeizmann/Documents/workspace_hpc/dhbw_hpc/gameoflife/vti", "gol", w, h, bounds, number_of_fields);
 
     printf("%ld timestep\n",t);
 
     usleep(20000);
 
     //SWAP
-    double *temp = currentfield;
+    //double *temp = currentfield;
     currentfield = newfield;
     //newfield = temp;
     newfield = calloc(w*h, sizeof(double)); //clear new field
@@ -211,14 +200,42 @@ void game(int w, int h) {
 
   free(currentfield);
   free(newfield);
-  free(threadData);
+  free(bounds);
+}
+
+double* readFromFile(char filename[256], int* w, int* h) {
+    FILE* file = fopen(filename, "r");
+
+    int size = 10*10;
+    int character;
+    size_t len = 0;
+    size_t width = 0;
+    size_t height = 0;
+    double* field = calloc(size, sizeof(double));
+
+    while ((character = fgetc(file)) != EOF){
+      if (character == '\n') {
+        if (!width) width = len;
+        height++;
+        continue;
+      }
+      if (character == 'x') field[len++] = 1;
+      if (character == '_') field[len++] = 0;
+      // resize
+      if(len==size){
+          field = realloc(field, sizeof(double) * (size += 10));
+      }
+    }
+    height++;
+
+    field = realloc(field, sizeof(*field) * len);
+    *w = width;
+    *h = height;
+
+    fclose(file);
+    return field;
 }
 
 int main(int c, char **v) {
-  int w = 0, h = 0;
-  if (c > 1) w = atoi(v[1]); ///< read width
-  if (c > 2) h = atoi(v[2]); ///< read height
-  if (w <= 0) w = 30; ///< default width
-  if (h <= 0) h = 30; ///< default height
-  game(w, h);
+  game();
 }
